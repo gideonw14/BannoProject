@@ -1,0 +1,139 @@
+﻿@using System.Text.RegularExpressions;
+@{
+  if (Request.IsAuthenticated)
+  {
+      if (IsPost)
+      {
+          string address = Request["Address"];                 //Web address to be operated on
+          System.Net.WebClient myWebClient = new WebClient();  //Web Client that pulls the HTML
+          string result = myWebClient.DownloadString(address); //HTML in a string
+
+          //Counting Alphanumeric Characters
+          List<string> alphaNumeric = new List<string>();                //stores the alphanumeric chars as strings
+          Dictionary<string, int> count = new Dictionary<string, int>(); //used for counting each instance of each char
+
+          //Regular Expression Patterns
+          string pngPattern = "src=\\S*?\\.png";             //Pattern for .png Images
+          string financialPattern = "financial institution"; //Pattern for financial institution
+          string productPattern = "<div class=\"column\">";  //Pattern for finding a product
+          string productPattern2 = "<h3 class=\"color-";     //Secondary patter for finding a product
+
+          //Pattern Counters
+          int financialCount = 0;
+          int pngCount = 0;
+          int productCount = 0;
+          int productCount2 = 0;
+
+          /*******************************
+          Counting Alphanumeric Characters
+          *******************************/
+          //Insert [A-Z a-z 0-9] into alphaNumeric
+          for (int i = 48; i < 123; i++)
+          {
+              if (i == 58) { i = 65; }
+              else if (i == 91) { i = 97; }
+              char c = Convert.ToChar(i);
+              string s = Convert.ToString(c);
+              alphaNumeric.Add(s);
+          }
+
+          //For each alphanumeric character
+          foreach (string s in alphaNumeric)
+          {
+              //For each alphanumeric character matched in the HTML
+              foreach (Match match in Regex.Matches(result, s))
+              {
+                  int currentCount = 0;
+                  count.TryGetValue(s, out currentCount); //If there is no value in count for character, it will be initialized as 1
+                  count[s] = currentCount + 1;
+              }
+          }
+          var countList = count.ToList(); //Convert Dictionary to List
+          countList.Sort((pair1, pair2) => pair1.Value.CompareTo(pair2.Value)); //Sort the List based on Value aka number of occurences
+          countList.Reverse(); //Reverse the list so that the highest values are at the front of thte list
+
+          /*******************
+          Counting .png Images
+          *******************/
+          foreach (Match match in Regex.Matches(result, pngPattern))
+          {
+              pngCount++;
+          }
+
+          /******************************************
+          Counting number of "financial institution"s
+          ******************************************/
+          foreach (Match match in Regex.Matches(result, financialPattern, RegexOptions.IgnoreCase))
+          {
+              financialCount++;
+          }
+
+          /***************************
+          Gathering the Twitter Handle
+          ***************************/
+          string twitterSite = "twitter:site\" content=\"";
+          int twitterHandleIndex = result.IndexOf(twitterSite) + twitterSite.Length;
+          string twitterHandle = "";
+          if (twitterHandleIndex < result.Length)
+          {
+              while (result[twitterHandleIndex] != '"')
+              {
+                  twitterHandle += result[twitterHandleIndex];
+                  twitterHandleIndex++;
+              }
+          }
+
+          /******************************
+          Counting the Number of Products
+          ******************************/
+          //Since there are two ways to indentify a product from the HTML,
+          //use them both and compare the results. If they return the same number,
+          //everything is good. Otherwise, show discrepancy.
+          foreach (Match match in Regex.Matches(result, productPattern))
+          {
+              productCount++;
+          }
+          foreach (Match match in Regex.Matches(result, productPattern2))
+          {
+              productCount2++;
+          }
+
+          /*********
+          HTML shown
+          *********/
+        <h2>Pulling HTML from @address</h2>
+        <h4>Three most popular alphanumeric characters</h4>
+        <p>*There is a distinction between upper and lower case</p>
+        <ol>
+        @for (int i = 0; i < 3; i++)
+        {
+            <li>'@countList[i].Key' => @countList[i].Value</li>
+        }
+        </ol>
+        <p>Number of .png images: @pngCount</p>
+        <p>Number of times "financial institution" occurs in the HTML: @financialCount</p>
+        <p>Twitter handle: @twitterHandle</p>
+        <p>Number of products offered:
+        @if (productCount == productCount2)
+        {
+        @productCount
+        }
+        else {
+        <p>Between @productCount and @productCount2</p>
+        }
+        </p>
+      }//end if(isPost)
+      else
+      {
+        <form method="post">
+            Enter website address: 
+            <input type="text" name="Address" value="https://banno.com/" />
+            <input type="submit" value="Submit" />
+        </form>
+      }
+  }//end if(isAuthenticated)
+  else
+  {
+    Response.Redirect("~/Account/Login");
+  }
+}
